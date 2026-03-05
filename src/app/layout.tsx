@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { PWA } from '@/components/PWA';
 import './globals.css';
 
 export const viewport: Viewport = {
@@ -8,6 +9,8 @@ export const viewport: Viewport = {
   userScalable: false, // Essencial para jogos/calculadoras no mobile
   themeColor: '#060a12',
 };
+
+
 
 export const metadata: Metadata = {
   title: 'Poker Odds | Calculadora Mobile',
@@ -20,14 +23,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
       <body className="bg-[#060a12] text-white overflow-hidden antialiased">
+        <PWA />
         {children}
       </body>
     </html>

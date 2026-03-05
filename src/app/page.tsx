@@ -54,7 +54,7 @@ export default function Home() {
         .font-mono  { font-family: 'DM Mono', monospace !important; }
       `}</style>
 
-      <div className="h-[100dvh] w-full flex flex-col bg-[#060a12] text-white overflow-hidden relative antialiased selection:bg-emerald-500/30">
+      <div className="h-dvh w-full flex flex-col bg-[#060a12] text-white overflow-hidden relative antialiased selection:bg-emerald-500/30">
 
         <AnimatePresence>
           {!hasStarted && (
