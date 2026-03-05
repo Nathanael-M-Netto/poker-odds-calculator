@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #060a12;
+  --foreground: #ffffff;
+}
+
+/* ─── Comportamentos de App Nativo Mobile ─── */
+html,
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  
+  /* Impede o "pull to refresh" (atualizar a página puxando pra baixo) */
+  overscroll-behavior-y: none; 
+  
+  /* Remove o quadrado azul/cinza chato de destaque ao tocar em botões (Android/iOS) */
+  -webkit-tap-highlight-color: transparent; 
+  
+  /* Impede o usuário de selecionar os textos da interface sem querer */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Oculta as barras de rolagem nativas para um visual mais limpo */
+::-webkit-scrollbar {
+  display: none;
+}
