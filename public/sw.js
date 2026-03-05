@@ -3,7 +3,7 @@ importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.4.1/workbox
 if (!workbox) {
   console.error('Workbox não carregou. App pode não funcionar offline.');
 } else {
-  workbox.precaching.precacheAndRoute(self.__WB_MANIFEST || []);
+  
 
   workbox.routing.registerRoute(
     ({ request }) => request.destination === 'image',
