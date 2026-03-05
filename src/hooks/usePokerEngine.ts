@@ -2,129 +2,88 @@
 
 import { useState, useEffect } from 'react';
 import { CardGroup, OddsCalculator } from 'poker-odds-calculator';
-import { Rank, Suit, ALL_RANKS } from '@/constants/poker';
+import { Rank, Suit } from '@/constants/poker';
 
-export type PlayingCard = { rank: Rank; suit: Suit; };
-const ALL_SUITS: Suit[] = ['s', 'h', 'd', 'c'];
+export type PlayingCard = { rank: Rank; suit: Suit };
+export type PokerOdds = { win: number; tie: number; lose: number };
+export type AddCardResult = 'added' | 'duplicate' | 'slot_full';
+
+const VALID_BOARD_LENGTHS = [0, 3, 4, 5];
 
 export function usePokerEngine() {
   const [hand, setHand] = useState<PlayingCard[]>([]);
   const [board, setBoard] = useState<PlayingCard[]>([]);
-  const [odds, setOdds] = useState({ win: 0, tie: 0 });
+  const [odds, setOdds] = useState<PokerOdds>({ win: 0, tie: 0, lose: 0 });
   const [isCalculating, setIsCalculating] = useState(false);
-  
-  // Número de jogadores na mesa (Você vs N-1 oponentes)
   const [playerCount, setPlayerCount] = useState(2);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-
-    // Só calcula se tiver a mão completa (2 cartas) 
-    // E se a mesa estiver vazia (Pre-flop) ou tiver pelo menos o Flop (3+ cartas)
-    if (hand.length === 2 && (board.length === 0 || board.length >= 3)) {
-      setIsCalculating(true);
-
-      // Usamos um pequeno delay para permitir que o estado "isCalculating" 
-      // renderize na tela antes do processador travar no cálculo pesado
-      timer = setTimeout(() => {
-        try {
-          const formattedHand = hand.map(c => `${c.rank}${c.suit}`).join('');
-          const formattedBoard = board.map(c => `${c.rank}${c.suit}`).join('');
-          
-          const playerHandGroup = CardGroup.fromString(formattedHand);
-          const boardGroup = formattedBoard ? CardGroup.fromString(formattedBoard) : undefined;
-
-          // Mapeia cartas que já saíram do baralho
-          const usedCards = new Set([...hand, ...board].map(c => `${c.rank}${c.suit}`));
-          const remainingDeck: string[] = [];
-
-          ALL_SUITS.forEach(suit => {
-            ALL_RANKS.forEach(rank => {
-              const cardStr = `${rank}${suit}`;
-              if (!usedCards.has(cardStr)) remainingDeck.push(cardStr);
-            });
-          });
-
-          let totalWin = 0;
-          let totalTie = 0;
-          
-          // Performance: Reduzimos simulações se houver muitos jogadores
-          const SIMULATIONS = playerCount > 5 ? 15 : 25; 
-
-          for (let i = 0; i < SIMULATIONS; i++) {
-            // Embaralhamento rápido
-            const shuffled = [...remainingDeck].sort(() => 0.5 - Math.random());
-            
-            // Gera mãos aleatórias para os oponentes invisíveis
-            const opponentsGroups = [];
-            let cardIndex = 0;
-            for (let j = 0; j < playerCount - 1; j++) {
-              const oppHandStr = `${shuffled[cardIndex]}${shuffled[cardIndex+1]}`;
-              opponentsGroups.push(CardGroup.fromString(oppHandStr));
-              cardIndex += 2;
-            }
-
-            // Executa o motor de cálculo estatístico
-            const result = OddsCalculator.calculate(
-              [playerHandGroup, ...opponentsGroups], 
-              boardGroup, 
-              undefined, 
-              30 // Precisão interna por iteração
-            );
-            
-            const playerOdds = result.equities[0]; 
-            totalWin += playerOdds.getEquity();
-            totalTie += playerOdds.getTiePercentage();
-          }
-
-          // Define a média dos resultados encontrados
-          setOdds({ 
-            win: totalWin / SIMULATIONS, 
-            tie: totalTie / SIMULATIONS 
-          });
-
-        } catch (error) {
-          console.error("Erro no cálculo de odds:", error);
-        } finally {
-          setIsCalculating(false);
-        }
-      }, 60); 
-    } else {
-      setOdds({ win: 0, tie: 0 });
+    if (hand.length !== 2 || !VALID_BOARD_LENGTHS.includes(board.length)) {
+      setOdds({ win: 0, tie: 0, lose: 0 });
+      setIsCalculating(false);
+      return;
     }
 
-    // Cleanup: Se o usuário mudar uma carta antes do cálculo terminar, cancela o anterior
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    setIsCalculating(true);
 
+    const timer = setTimeout(() => {
+      try {
+        const safePlayerCount = Math.max(2, Math.min(playerCount, 9));
+        const formattedHand = hand.map(c => `${c.rank}${c.suit}`).join('');
+        const formattedBoard = board.map(c => `${c.rank}${c.suit}`).join('');
+
+        const playerHandGroup = CardGroup.fromString(formattedHand);
+        const boardGroup = formattedBoard ? CardGroup.fromString(formattedBoard) : undefined;
+
+        const result = OddsCalculator.calculate(
+          [playerHandGroup],
+          boardGroup,
+          undefined,
+          safePlayerCount
+        );
+
+        const playerOdds = result.equities[0];
+        const win = playerOdds.getEquity();
+        const tie = playerOdds.getTiePercentage();
+
+        if (!cancelled) {
+          setOdds({ win, tie, lose: Math.max(0, 100 - win - tie) });
+        }
+      } catch (error) {
+        console.error('Erro no cálculo de odds:', error);
+        if (!cancelled) setOdds({ win: 0, tie: 0, lose: 0 });
+      } finally {
+        if (!cancelled) setIsCalculating(false);
+      }
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [hand, board, playerCount]);
 
-  const addCard = (rank: Rank, suit: Suit, target: 'hand' | 'board') => {
-    const isDuplicate = [...hand, ...board].some(card => card.rank === rank && card.suit === suit);
-    if (isDuplicate) return;
+  const addCard = (rank: Rank, suit: Suit, target: 'hand' | 'board'): AddCardResult => {
+    const isDuplicate = [...hand, ...board].some(c => c.rank === rank && c.suit === suit);
+    if (isDuplicate) return 'duplicate';
 
-    const newCard = { rank, suit };
-    if (target === 'hand' && hand.length < 2) {
-      setHand(prev => [...prev, newCard]);
-    } else if (target === 'board' && board.length < 5) {
-      setBoard(prev => [...prev, newCard]);
+    if (target === 'hand') {
+      if (hand.length >= 2) return 'slot_full';
+      setHand(prev => [...prev, { rank, suit }]);
+    } else {
+      if (board.length >= 5) return 'slot_full';
+      setBoard(prev => [...prev, { rank, suit }]);
     }
+    return 'added';
   };
 
   const resetGame = () => {
     setHand([]);
     setBoard([]);
-    setOdds({ win: 0, tie: 0 });
+    setOdds({ win: 0, tie: 0, lose: 0 });
     setIsCalculating(false);
   };
 
-  return { 
-    hand, 
-    board, 
-    odds, 
-    isCalculating, 
-    playerCount, 
-    setPlayerCount, 
-    addCard, 
-    resetGame 
-  };
+  return { hand, board, odds, isCalculating, playerCount, setPlayerCount, addCard, resetGame };
 }
